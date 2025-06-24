@@ -1,71 +1,86 @@
-name: Step 3, Fix a broken sidebar
+name: Step 3
 
-# This step listens for the learner opening, editing, or reopening a pull request.
-# This workflow updates from step 3 to step X.
-
-# This will run every time we open, edit, or reopen the pull request.
-# Reference: https://docs.github.com/en/actions/learn-github-actions/events-that-trigger-workflows
 on:
-  workflow_dispatch:
   pull_request:
-    types: [opened, edited, reopened]
+    branches:
+      - main
+    types:
+      - opened
+      - edited
+      - reopened
+      - closed
 
 permissions:
-  # Need `contents: read` to checkout the repository.
-  # Need `contents: write` to update the step metadata.
   contents: write
+  actions: write
+  issues: write
+
+env:
+  FINISH_FILE: ".github/steps/x-finish.md"
 
 jobs:
-  # Get the current step to only run the main job when the learner is on the same step.
-  get_current_step:
-    name: Check current step number
+  find_exercise:
+    name: Find Exercise Issue
+    uses: skills/exercise-toolkit/.github/workflows/find-exercise-issue.yml@v0.3.0
+
+  check_step_work:
+    name: Check Step Work
+    needs: find_exercise
     runs-on: ubuntu-latest
+    if: |
+      !github.event.repository.is_template &&
+      github.head_ref == 'fix-sidebar' &&
+      github.event.pull_request.merged == true &&
+      contains(github.event.pull_request.body, 'Closes')
+    env:
+      ISSUE_URL: ${{ needs.find_exercise.outputs.issue-url }}
+
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
-      - id: get_step
+
+      - name: Update Comment - Checking Work
         run: |
-          echo "current_step=$(cat ./.github/steps/-step.txt)" >> $GITHUB_OUTPUT
-    outputs:
-      current_step: ${{ steps.get_step.outputs.current_step }}
+          gh issue comment "$ISSUE_URL" \
+            --body-file exercise-toolkit/markdown-templates/step-feedback/checking-work.md \
+            --edit-last
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  on_fix_the_sidebar_pr_body:
-    name: Check if the PR body is containing the correct closing message
-    needs: get_current_step
-
-    # We will only run this action when:
-    # 1. This repository isn't the template repository.
-    # 2. The step is currently 3.
-    # Reference: https://docs.github.com/en/actions/learn-github-actions/contexts
-    # Reference: https://docs.github.com/en/actions/learn-github-actions/expressions
-    if: >-
-      ${{ !github.event.repository.is_template
-          && needs.get_current_step.outputs.current_step == 3 }}
-
-    # We'll run Ubuntu for performance instead of Mac or Windows.
+  post_review_content:
+    name: Post Review Content
+    needs: [find_exercise, check_step_work]
     runs-on: ubuntu-latest
+    env:
+      ISSUE_URL: ${{ needs.find_exercise.outputs.issue-url }}
 
     steps:
-      # We'll need to check out the repository so that we can edit the README.
-      - name: Checkout
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Get response templates
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Let's get all the branches.
+          repository: skills/exercise-toolkit
+          path: exercise-toolkit
+          ref: v0.3.0
 
-      - name: Dump GitHub pull request context
-        id: github_pull_request_step
-        run: echo '${{ toJSON(github.event.pull_request) }}'
-
-      - name: Check if the PR body is containing the required closing message
-        if: contains(github.event.pull_request.body, 'Closes')
-        run: echo "Found _Closes_ message with autolinked issue in the body of PR $NUMBER"
+      - name: Create Comment - Add Review Content
+        run: |
+          gh issue comment "$ISSUE_URL" \
+            --body-file "$FINISH_FILE"
         env:
-          NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
 
-      # Update README from step 3 to step X.
-      - name: Update to step X
-        uses: skills/action-update-step@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          from_step: 3
-          to_step: X
+      - name: Disable Current Workflow
+        run: gh workflow disable "${{ github.workflow }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  finish_exercise:
+    name: Finish Exercise
+    needs: post_review_content
+    uses: skills/exercise-toolkit/.github/workflows/finish-exercise.yml@v0.4.0
+    with:
+      issue-url: ${{ github.event.pull_request.issue_url }}

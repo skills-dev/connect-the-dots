@@ -1,11 +1,4 @@
-<!--
-  <<< Author notes: Finish >>>
-  Review what we learned, ask for feedback, provide next steps.
--->
-
-## Finish
-
-_Congratulations friend, you've completed this course! :tada:_
+## Review
 
 <img src="https://octodex.github.com/images/collabocats.jpg" alt=celebrate width=300 align=right>
 

@@ -1,9 +1,3 @@
-<!--
-  <<< Author notes: Step 3 >>>
-  Start this step by acknowledging the previous step.
-  Define terms and link to docs.github.com.
--->
-
 ## Step 3: Fix a broken sidebar
 
 _Great job finding that commit :heart:_
@@ -27,13 +21,16 @@ When you're looking at a commit on GitHub, you can see a lot of information. Fro
 
 ### :keyboard: Activity: Fix a broken sidebar
 
-1. In the main branch [Edit the `docs/_sidebar.md` file](/docs/_sidebar.md).
+1. In the `main` branch, edit the `/docs/_sidebar.md` file.
 2. Correct the spelling of the reference `(doc-references__.md)` on line 4 by changing it into `(doc-references.md)`.
 3. Select or create a new branch `fix-sidebar` for this commit and start a pull request.
-4. Make sure that **main** is selected for **base:** and **fix-sidebar** for **compare:**.
-5. Using the **Assignees** section on the right side, assign yourself to the pull request.
-6. In the PR comment add 'Closes #2' and autolink issue #2.
+![image](https://github.com/user-attachments/assets/efa2c6b1-1d74-48c1-9337-14161dd0f914)
+
+
+4. Make sure that `main` is selected for `base:` and `fix-sidebar` for `compare:`.
+5. Using the `Assignees` section on the right side, assign yourself to the pull request.
+6. In the PR comment add `Closes #2` and autolink issue #2.
 7. Click **Create pull request** and wait about 20 seconds.
 8. Merge this pull request.
-9. Delete the branch 'fix-sidebar'.
-10. Wait about 20 seconds then refresh this page (the one you're following instructions from). [GitHub Actions](https://docs.github.com/en/actions) will automatically update to the next step.
+9. Delete the branch `fix-sidebar`.
+10. After you merge the PR and delete the branch, Mona will prepare the next step in this exercise!

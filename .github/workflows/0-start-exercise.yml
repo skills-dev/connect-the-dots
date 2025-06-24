@@ -1,0 +1,157 @@
+name: Step 0
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  actions: write
+  issues: write
+
+env:
+  STEP_1_FILE: ".github/steps/1-resolve-duplicate-issues.md"
+
+jobs:
+  start_exercise:
+    if: |
+      !github.event.repository.is_template
+    name: Start Exercise
+    uses: skills/exercise-toolkit/.github/workflows/start-exercise.yml@v0.3.0
+    with:
+      exercise-title: "Connect the Dots"
+      intro-message: "Let's learn to navigate a GitHub repository effectively!"
+
+  create_first_task: 
+    name: Create first task
+    runs-on: ubuntu-latest
+    needs: [start_exercise]
+    env:
+      ISSUE_URL: ${{ needs.start_exercise.outputs.issue-url }}
+    outputs:
+      original_issue: ${{ steps.issue_a.outputs.original_issue }}
+      duplicate_issue: ${{ steps.issue_b.outputs.duplicate_issue }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create 'Fix broken sidebar' issue (target for duplicate)
+        id: issue_a
+        uses: actions/github-script@v7
+        with:
+          result-encoding: string
+          script: |
+            const { data: issue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: "Fix the broken sidebar",
+              body: "The sidebar in `docs/_sidebar.md` is broken and needs fixing."
+            });
+            core.setOutput("original_issue", issue.number);
+
+      - name: Create 'Duplicate report' issue (to be closed as duplicate)
+        id: issue_b
+        uses: actions/github-script@v7
+        with:
+          result-encoding: string
+          script: |
+            const { data: issue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: "Sidebar bug again",
+              body: "Looks like the sidebar bug was already reported."
+            });
+            core.setOutput("duplicate_issue", issue.number);
+
+
+  prep_repo_content: 
+    name: Prep repo for next step
+    runs-on: ubuntu-latest
+    needs: [start_exercise, create_first_task]
+    env:
+      ISSUE_URL: ${{ needs.start_exercise.outputs.issue-url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+          
+      - name: Prepare files history
+        run: |
+          echo "Make sure we are on step 0"
+          if [ "${{ github.workflow }}" != "Step 0" ]
+          then
+            echo "Current step is not Step 0"
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email github-actions[bot]@users.noreply.github.com
+          git checkout main
+          echo "Update _sidebar.md for the 1st time"
+          cp -f .github/files/_sidebar01.md docs/_sidebar.md
+          git add docs/_sidebar.md
+          git commit -m "updated _sidebar.md"
+          git pull --rebase origin main || true
+          git push || true
+          echo "update _sidebar.md for the 2nd time"
+          cp -f .github/files/_sidebar02.md docs/_sidebar.md
+          git add docs/_sidebar.md
+          git commit -m "add sidebar to documentation"
+          git push
+          echo "preserve the commit shaw"
+          git log --all --oneline | grep "add sidebar to documentation" | cut -c 1-7 >> .github/files/SIDEBARCOMMIT
+          git add .github/files/SIDEBARCOMMIT
+          git commit -m "created SIDEBARCOMMIT"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+  post_next_step_content:
+    name: Post next step content
+    runs-on: ubuntu-latest
+    needs: [start_exercise, create_first_task]
+    env:
+      ISSUE_URL: ${{ needs.start_exercise.outputs.issue-url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get response templates
+        uses: actions/checkout@v4
+        with:
+          repository: skills/exercise-toolkit
+          path: exercise-toolkit
+          ref: v0.3.0
+
+      - name: Build comment - add step content
+        id: build-comment
+        uses: skills/action-text-variables@v1
+        with:
+          template-file: ${{ env.STEP_1_FILE }}
+          template-vars: |
+            full_repo_name=${{ github.repository }}
+            original_issue=${{ needs.create_first_task.outputs.original_issue }}
+            duplicate_issue=${{ needs.create_first_task.outputs.duplicate_issue }}
+
+      - name: Create comment - add step content
+        run: |
+          gh issue comment "$ISSUE_URL" \
+            --body "$ISSUE_BODY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_BODY: ${{ steps.build-comment.outputs.updated-text }}
+
+      - name: Create comment - watching for progress
+        run: |
+          gh issue comment "$ISSUE_URL" \
+            --body-file exercise-toolkit/markdown-templates/step-feedback/watching-for-progress.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable next step workflow
+        run: |
+          gh workflow enable "Step 1"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

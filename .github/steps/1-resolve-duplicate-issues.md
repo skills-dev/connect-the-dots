@@ -1,14 +1,4 @@
-<!--
-  <<< Author notes: Step 1 >>>
-  Choose 3-5 steps for your course.
-  The first step is always the hardest, so pick something easy!
-  Link to docs.github.com for further explanations.
-  Encourage users to open new tabs for steps!
--->
-
 ## Step 1: Resolve duplicate issues
-
-_Welcome to the course :tada:_
 
 GitHub has special capabilities to help reference other information on GitHub. For example, when you reference another issue or pull request by number, that number will be hyperlinked. At the same time, a cross-reference is created in the linked issue or pull request. This two-way reference helps people track the relationship of information across GitHub.
 
@@ -24,6 +14,7 @@ When you want to create a crosslink, start typing the title of an issue or pull 
 
 ### :keyboard: Activity: Find and close the cross-linked issue
 
-1. Navigate to the issue #1 (Welcome)
-2. Type "Duplicate of #2" as a comment and close issue #1
-3. Wait about 20 seconds then refresh this page (the one you're following instructions from). [GitHub Actions](https://docs.github.com/en/actions) will automatically update to the next step.
+1. Navigate to the issue #{{duplicate_issue}} (Welcome)
+2. Type "Duplicate of #{{original_issue}}" as a comment and close issue #{{duplicate_issue}}
+3. After you close the issue, Mona will prepare the next step in this exercise!
+
