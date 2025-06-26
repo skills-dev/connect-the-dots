@@ -20,6 +20,8 @@ env:
 
 jobs:
   find_exercise:
+    if: |
+      !github.event.repository.is_template
     name: Find Exercise Issue
     uses: skills/exercise-toolkit/.github/workflows/find-exercise-issue.yml@v0.3.0
 
@@ -34,42 +36,52 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Validate pull request state
-        id: validate_pr
-        run: |
-          echo "valid=true" >> $GITHUB_OUTPUT
+      - name: Get response templates
+        uses: actions/checkout@v4
+        with:
+          repository: skills/exercise-toolkit
+          path: exercise-toolkit
+          ref: v0.3.0
 
-          if [ "${{ github.event.repository.is_template }}" = "true" ]; then
-            echo "valid=false" >> $GITHUB_OUTPUT
-          elif [ "${{ github.head_ref }}" != "fix-sidebar" ]; then
-            echo "valid=false" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event.pull_request.merged }}" != "true" ]; then
-            echo "valid=false" >> $GITHUB_OUTPUT
-          elif ! echo "${{ github.event.pull_request.body }}" | grep -iq "Closes"; then
-            echo "valid=false" >> $GITHUB_OUTPUT
-          fi
+      - name: Check Branch Name
+        id: check_branch
+        uses: skills/action-keyphrase-checker@v1
+        continue-on-error: true
+        with:
+          text: ${{ github.head_ref }}
+          keyphrase: "fix-sidebar"
+          case-sensitive: true
+          minimum-occurrences: 1
+
+      - name: Check PR Merge State
+        id: check_pr_state
+        if: github.event.pull_request.merged == true
+        uses: skills/action-keyphrase-checker@v1
+        continue-on-error: true
+        with:
+          text: ${{ github.event.pull_request.body }}
+          keyphrase: "Closes"
+          case-sensitive: false
+          minimum-occurrences: 1
 
       - name: Update comment - PR not valid
-        if: steps.validate_pr.outputs.valid == 'false'
+        if: steps.check_branch.outcome == 'failure' || steps.check_pr_state.outcome == 'failure'
         run: |
           gh issue comment "$ISSUE_URL" \
-            --body "**Looks like your pull request isn't quite ready yet.**  
-            Please ensure the following:
-            - Your PR is from the `fix-sidebar` branch
-            - The PR is merged
-            - The body contains the keyword `Closes` (case-insensitive)"
+          --body "**Looks like your pull request isn't quite ready yet.**  
+          Please ensure the following:
+          - Your PR is from the `fix-sidebar` branch
+          - The PR is merged
+          - The body contains the keyword `Closes` (case-insensitive)"
+          exit 1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Fail job if PR is invalid
-        if: steps.validate_pr.outputs.valid == 'false'
-        run: exit 1
 
-      - name: Update Comment - Checking Work
-        if: steps.validate_pr.outputs.valid == 'true'
+      - name: Update comment - step finished - final review next
         run: |
           gh issue comment "$ISSUE_URL" \
-            --body-file exercise-toolkit/markdown-templates/step-feedback/checking-work.md \
+            --body-file exercise-toolkit/markdown-templates/step-feedback/lesson-review.md \
             --edit-last
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -78,6 +90,7 @@ jobs:
     name: Post Review Content
     needs: [find_exercise, check_step_work]
     runs-on: ubuntu-latest
+    if: needs.check_step_work.outputs.check-branch == 'success' && needs.check_step_work.outputs.check-pr-state == 'success'
     env:
       ISSUE_URL: ${{ needs.find_exercise.outputs.issue-url }}
 
@@ -99,14 +112,24 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Disable Current Workflow
-        run: gh workflow disable "${{ github.workflow }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   finish_exercise:
     name: Finish Exercise
-    needs: post_review_content
-    uses: skills/exercise-toolkit/.github/workflows/finish-exercise.yml@v0.4.0
+    needs: [find_exercise, post_review_content]
+    uses: skills/exercise-toolkit/.github/workflows/finish-exercise.yml@v0.6.0
     with:
-      issue-url: ${{ github.event.pull_request.issue_url }}
+      issue-url: ${{ needs.find_exercise.outputs.issue-url }}
+      exercise-title: "Connect the Dots"
+
+
+  disable_workflow:
+    name: Disable this workflow
+    needs: [find_exercise, post_review_content, finish_exercise]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Disable current workflow
+        run: gh workflow disable "${{github.workflow}}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

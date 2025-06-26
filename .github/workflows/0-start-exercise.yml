@@ -128,6 +128,12 @@ jobs:
             full_repo_name: ${{ github.repository }}
             original_issue: ${{ needs.create_first_task.outputs.original_issue }}
             duplicate_issue: ${{ needs.create_first_task.outputs.duplicate_issue }}
+
+      - name: Create comment - add step content
+        run: |
+          gh issue comment "$ISSUE_URL" \
+            --body "$ISSUE_BODY"
+        env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_BODY: ${{ steps.build-comment.outputs.updated-text }}
 

@@ -35,6 +35,16 @@ jobs:
           path: exercise-toolkit
           ref: v0.3.0
 
+
+      - name: Update comment - checking work
+        if: steps.check_keyword.outcome == 'success'
+        run: |
+          gh issue comment "$ISSUE_URL" \
+            --body-file exercise-toolkit/markdown-templates/step-feedback/checking-work.md \
+            --edit-last
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Check for required keyword in comment
         id: check_keyword
         uses: skills/action-keyphrase-checker@v1
@@ -57,11 +67,19 @@ jobs:
         if: steps.check_keyword.outcome == 'failure'
         run: exit 1
 
-      - name: Update comment - checking work
-        if: steps.check_keyword.outcome == 'success'
+
+      - name: Build message - step finished
+        id: build-message-step-finish
+        uses: skills/action-text-variables@v1
+        with:
+          template-file: exercise-toolkit/markdown-templates/step-feedback/step-finished-prepare-next-step.md
+          template-vars: |
+            next_step_number=2
+
+      - name: Update comment - step finished
         run: |
           gh issue comment "$ISSUE_URL" \
-            --body-file exercise-toolkit/markdown-templates/step-feedback/checking-work.md \
+            --body "${{ steps.build-message-step-finish.outputs.updated-text }}" \
             --edit-last
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
