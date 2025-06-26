@@ -37,14 +37,13 @@ jobs:
     name: Check Step Work
     runs-on: ubuntu-latest
     needs: [find_exercise, validate_commit_reference]
-    if: contains(github.event.comment.body, ${{ needs.validate_commit_reference.outputs.commit_id }})
     env:
       ISSUE_URL: ${{ needs.find_exercise.outputs.issue-url }}
+      COMMIT_ID: ${{ needs.validate_commit_reference.outputs.commit_id }}
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
 
       - name: Get response templates
         uses: actions/checkout@v4
@@ -53,7 +52,32 @@ jobs:
           path: exercise-toolkit
           ref: v0.3.0
 
-      - name: Update Comment - Checking Work
+      - name: Check if commit ID is in comment
+        id: check_commit_id
+        uses: skills/action-keyphrase-checker@v1
+        with:
+          text: ${{ github.event.comment.body }}
+          keyphrase: ${{ env.COMMIT_ID }}
+          case-sensitive: false
+          minimum-occurrences: 1
+
+      - name: Comment - Missing commit ID
+        if: steps.check_commit_id.outcome == 'failure'
+        run: |
+          gh issue comment "$ISSUE_URL" \
+            --body: >
+              **Hmm, I couldn’t find the commit ID in your comment.**
+              Please make sure to follow the instructions in the step above.
+
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fail job if not all checks passed
+        if: steps.check_commit_id.outcome == 'failure'
+        run: exit 1
+
+      - name: Comment - Checking your work
+        if: steps.check_commit_id.outcome == 'success'
         run: |
           gh issue comment "$ISSUE_URL" \
             --body-file exercise-toolkit/markdown-templates/step-feedback/checking-work.md \

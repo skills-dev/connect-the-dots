@@ -27,11 +27,6 @@ jobs:
     name: Check Step Work
     needs: find_exercise
     runs-on: ubuntu-latest
-    if: |
-      !github.event.repository.is_template &&
-      github.head_ref == 'fix-sidebar' &&
-      github.event.pull_request.merged == true &&
-      contains(github.event.pull_request.body, 'Closes')
     env:
       ISSUE_URL: ${{ needs.find_exercise.outputs.issue-url }}
 
@@ -39,7 +34,39 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Validate pull request state
+        id: validate_pr
+        run: |
+          echo "valid=true" >> $GITHUB_OUTPUT
+
+          if [ "${{ github.event.repository.is_template }}" = "true" ]; then
+            echo "valid=false" >> $GITHUB_OUTPUT
+          elif [ "${{ github.head_ref }}" != "fix-sidebar" ]; then
+            echo "valid=false" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.pull_request.merged }}" != "true" ]; then
+            echo "valid=false" >> $GITHUB_OUTPUT
+          elif ! echo "${{ github.event.pull_request.body }}" | grep -iq "Closes"; then
+            echo "valid=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update comment - PR not valid
+        if: steps.validate_pr.outputs.valid == 'false'
+        run: |
+          gh issue comment "$ISSUE_URL" \
+            --body "**Looks like your pull request isn't quite ready yet.**  
+            Please ensure the following:
+            - Your PR is from the `fix-sidebar` branch
+            - The PR is merged
+            - The body contains the keyword `Closes` (case-insensitive)"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fail job if PR is invalid
+        if: steps.validate_pr.outputs.valid == 'false'
+        run: exit 1
+
       - name: Update Comment - Checking Work
+        if: steps.validate_pr.outputs.valid == 'true'
         run: |
           gh issue comment "$ISSUE_URL" \
             --body-file exercise-toolkit/markdown-templates/step-feedback/checking-work.md \
@@ -71,7 +98,6 @@ jobs:
             --body-file "$FINISH_FILE"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
 
       - name: Disable Current Workflow
         run: gh workflow disable "${{ github.workflow }}"

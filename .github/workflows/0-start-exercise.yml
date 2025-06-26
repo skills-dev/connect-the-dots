@@ -69,7 +69,7 @@ jobs:
   prep_repo_content: 
     name: Prep repo for next step
     runs-on: ubuntu-latest
-    needs: [start_exercise, create_first_task]
+    needs: [start_exercise]
     env:
       ISSUE_URL: ${{ needs.start_exercise.outputs.issue-url }}
 
@@ -79,12 +79,6 @@ jobs:
           
       - name: Prepare files history
         run: |
-          echo "Make sure we are on step 0"
-          if [ "${{ github.workflow }}" != "Step 0" ]
-          then
-            echo "Current step is not Step 0"
-            exit 0
-          fi
           git config user.name github-actions[bot]
           git config user.email github-actions[bot]@users.noreply.github.com
           git checkout main
@@ -127,19 +121,13 @@ jobs:
 
       - name: Build comment - add step content
         id: build-comment
-        uses: skills/action-text-variables@v1
+        uses: skills/action-text-variables@v2
         with:
           template-file: ${{ env.STEP_1_FILE }}
           template-vars: |
-            full_repo_name=${{ github.repository }}
-            original_issue=${{ needs.create_first_task.outputs.original_issue }}
-            duplicate_issue=${{ needs.create_first_task.outputs.duplicate_issue }}
-
-      - name: Create comment - add step content
-        run: |
-          gh issue comment "$ISSUE_URL" \
-            --body "$ISSUE_BODY"
-        env:
+            full_repo_name: ${{ github.repository }}
+            original_issue: ${{ needs.create_first_task.outputs.original_issue }}
+            duplicate_issue: ${{ needs.create_first_task.outputs.duplicate_issue }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_BODY: ${{ steps.build-comment.outputs.updated-text }}
 
