@@ -17,10 +17,31 @@ jobs:
     name: Find Exercise Issue
     uses: skills/exercise-toolkit/.github/workflows/find-exercise-issue.yml@v0.3.0
 
-  check_issue_keyword:
-    name: Check issue keyword
+  validate_issue_keyword:
+    name: Validate issue keyword
     runs-on: ubuntu-latest
     needs: [find_exercise]
+    outputs:
+      comment_check: ${{ steps.check_keyword.outcome }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Check for required keyword in comment
+        id: check_keyword
+        uses: skills/action-keyphrase-checker@v1
+        with:
+          text: ${{ github.event.comment.body }}
+          keyphrase: "Duplicate of"
+          case-sensitive: false
+          minimum-occurrences: 1
+
+
+  check_step_work:
+    name: Check Step Work
+    runs-on: ubuntu-latest
+    needs: [find_exercise, validate_issue_keyword]
     env:
       ISSUE_URL: ${{ needs.find_exercise.outputs.issue-url }}
 
@@ -35,9 +56,7 @@ jobs:
           path: exercise-toolkit
           ref: v0.3.0
 
-
       - name: Update comment - checking work
-        if: steps.check_keyword.outcome == 'success'
         run: |
           gh issue comment "$ISSUE_URL" \
             --body-file exercise-toolkit/markdown-templates/step-feedback/checking-work.md \
@@ -45,27 +64,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check for required keyword in comment
-        id: check_keyword
-        uses: skills/action-keyphrase-checker@v1
-        with:
-          text: ${{ github.event.comment.body }}
-          keyphrase: "Duplicate of"
-          case-sensitive: false
-          minimum-occurrences: 1
-
       - name: Comment - Missing required phrase
-        if: steps.check_keyword.outcome == 'failure'
+        if: needs.validate_issue_keyword.outputs.comment_check != 'success'
         run: |
           gh issue comment "$ISSUE_URL" \
             --body "**Hmm, I didn’t find the phrase `Duplicate of` in your comment.**  
             Please make sure to include that exact phrase to proceed."
+          exit 1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Fail job if keyword is missing
-        if: steps.check_keyword.outcome == 'failure'
-        run: exit 1
 
 
       - name: Build message - step finished
@@ -86,7 +93,7 @@ jobs:
 
   post_next_step_content:
     name: Post next step content
-    needs: [find_exercise, check_issue_keyword]
+    needs: [find_exercise, validate_issue_keyword, check_step_work]
     runs-on: ubuntu-latest
     env:
       ISSUE_URL: ${{ needs.find_exercise.outputs.issue-url }}
